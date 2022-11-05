@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	cfg "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/caarlos0/env"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -22,6 +24,7 @@ const (
 type environmentVariables struct {
 	OCPApimSubscriptionKey string `env:"OCP_APIM_SUBSCRIPTION_KEY,required"`
 	BaseAPIHost            string `env:"BASE_API_HOST,required"`
+	TopicARN               string `env:"TOPIC_ARN,required"`
 }
 
 type config struct {
@@ -67,7 +70,8 @@ func setup() (envVars *environmentVariables, err error) {
 }
 
 func (client *nycClient) getASPItems() ([]Item, error) {
-	fromDate := time.Now().Add(-time.Hour * (24 * 7))
+	//fromDate := time.Now().Add(-time.Hour * (24 * 7))
+	fromDate := time.Now()
 	toDate := time.Now()
 
 	apiEndpoint := fmt.Sprintf("%s/%s?fromDate=%s&toDate=%s",
@@ -109,7 +113,9 @@ func (client *nycClient) getASPItems() ([]Item, error) {
 	}
 
 	items := filterItems(data, func(item Item) bool {
+		//return item.Type == "Alternate Side Parking" && item.Status == "SUSPENDED"
 		return item.Type == "Alternate Side Parking"
+
 	})
 
 	return items, nil
@@ -139,7 +145,7 @@ func HandleRequest(ctx context.Context) ([]Item, error) {
 	log := logrus.NewEntry(logger)
 	log.WithField("component", "nyc-asp").Info("starting up")
 
-	defer log.WithField("component", "nyc-asp").Info("Shutting down")
+	defer log.WithField("component", "nyc-asp").Info("shutting down")
 
 	envVars, err := setup()
 	if err != nil {
@@ -157,6 +163,33 @@ func HandleRequest(ctx context.Context) ([]Item, error) {
 	}
 
 	aspItems, err := apiClient.getASPItems()
+	if err != nil {
+		log.WithError(err).Error()
+		os.Exit(1)
+	}
+
+	// Publish to SNS Topic
+	location, _ := time.LoadLocation("America/New_York")
+	formattedTime := time.Now().In(location).Format("Monday, Jan 02 2006")
+
+	topicMsg := fmt.Sprintf("Date: %v\nASP: %s\nDetails: %s", formattedTime, aspItems[0].Status, aspItems[0].Details)
+
+	cfg, err := cfg.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.WithError(err).Error()
+		os.Exit(1)
+	}
+
+	topicArn := envVars.TopicARN
+
+	client := sns.NewFromConfig(cfg)
+
+	input := &sns.PublishInput{
+		Message:  &topicMsg,
+		TopicArn: &topicArn,
+	}
+
+	_, err = client.Publish(ctx, input)
 	if err != nil {
 		log.WithError(err).Error()
 		os.Exit(1)
