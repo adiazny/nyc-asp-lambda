@@ -26,6 +26,10 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type SNSClient interface {
+	Publish(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error)
+}
+
 type Config struct {
 	APIKey      string
 	BaseAPIHost string
@@ -36,7 +40,7 @@ type Client struct {
 	Log    *logrus.Entry
 	Config Config
 	HTTP   HTTPClient
-	SNS    *sns.Client
+	SNS    SNSClient
 }
 
 // GetASPItems performs HTTP request to obtain calendar items.

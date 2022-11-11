@@ -27,12 +27,11 @@ func TestClient_GetASPItems(t *testing.T) {
 		want    []calendar.Item
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "success suspended day",
 			fields: fields{
-				HTTP: newMockClient(func(req *http.Request) (*http.Response, error) {
-					data := mustLoadJsonFile(t, "testdata/valid-suspended-day-response.json")
+				HTTP: newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+					data := mustLoadJSONFile(t, "testdata/valid-suspended-day-response.json")
 
 					return &http.Response{
 						StatusCode: http.StatusOK,
@@ -50,8 +49,8 @@ func TestClient_GetASPItems(t *testing.T) {
 		{
 			name: "success no suspended day",
 			fields: fields{
-				HTTP: newMockClient(func(req *http.Request) (*http.Response, error) {
-					data := mustLoadJsonFile(t, "testdata/valid-no-suspended-day-response.json")
+				HTTP: newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
+					data := mustLoadJSONFile(t, "testdata/valid-no-suspended-day-response.json")
 
 					return &http.Response{
 						StatusCode: http.StatusOK,
@@ -65,7 +64,7 @@ func TestClient_GetASPItems(t *testing.T) {
 		{
 			name: "non 200 response status",
 			fields: fields{
-				HTTP: newMockClient(func(req *http.Request) (*http.Response, error) {
+				HTTP: newMockHTTPClient(func(req *http.Request) (*http.Response, error) {
 					return &http.Response{
 						StatusCode: http.StatusNotFound,
 						Body:       nil,
@@ -75,12 +74,6 @@ func TestClient_GetASPItems(t *testing.T) {
 			want:    nil,
 			wantErr: true,
 		},
-		// {
-		// 	name: "error performing http Do",
-		// },
-		// {
-		// 	name: "error reading response body",
-		// },
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -111,13 +104,15 @@ func TestClient_PublishSNS(t *testing.T) {
 	type fields struct {
 		Log    *logrus.Entry
 		Config asp.Config
-		HTTP   *http.Client
-		SNS    *sns.Client
+		HTTP   asp.HTTPClient
+		SNS    asp.SNSClient
 	}
+
 	type args struct {
 		ctx      context.Context
 		aspItems []calendar.Item
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -125,7 +120,43 @@ func TestClient_PublishSNS(t *testing.T) {
 		wantErr bool
 	}{
 		// TODO: Add test cases.
+		{
+			name: "success",
+			fields: fields{
+				SNS: newMockSNSClient(func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
+					return nil, nil
+				}),
+			},
+			args: args{
+				ctx: context.Background(),
+				aspItems: []calendar.Item{{
+					Details: "Alternate side parking is suspended for Veterans Day. Meters are in effect.",
+					Status:  "SUSPENDED",
+					Type:    "Alternate Side Parking",
+				}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "error",
+			fields: fields{
+				Log: logrus.NewEntry(logrus.New()),
+				SNS: newMockSNSClient(func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
+					return nil, errors.New("mock error")
+				}),
+			},
+			args: args{
+				ctx: context.Background(),
+				aspItems: []calendar.Item{{
+					Details: "Alternate side parking is suspended for Veterans Day. Meters are in effect.",
+					Status:  "SUSPENDED",
+					Type:    "Alternate Side Parking",
+				}},
+			},
+			wantErr: true,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &asp.Client{
@@ -141,27 +172,43 @@ func TestClient_PublishSNS(t *testing.T) {
 	}
 }
 
-type mockCleint struct {
-	DoFunc func(req *http.Request) (*http.Response, error)
-}
-
-func (mc *mockCleint) Do(req *http.Request) (*http.Response, error) {
-	if req == nil {
-		return nil, errors.New("error request is nil")
-	}
-	return mc.DoFunc(req)
-}
-
-func newMockClient(doFunc func(req *http.Request) (*http.Response, error)) *mockCleint {
-	return &mockCleint{
+func newMockHTTPClient(doFunc func(req *http.Request) (*http.Response, error)) *mockHTTPCleint {
+	return &mockHTTPCleint{
 		DoFunc: doFunc,
 	}
 }
 
-func mustLoadJsonFile(t *testing.T, filePath string) *os.File {
+type mockHTTPCleint struct {
+	DoFunc func(req *http.Request) (*http.Response, error)
+}
+
+func (mhc *mockHTTPCleint) Do(req *http.Request) (*http.Response, error) {
+	if req == nil {
+		return nil, errors.New("error request is nil")
+	}
+
+	return mhc.DoFunc(req)
+}
+
+func newMockSNSClient(publishFunc func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error)) *mockSNSClient {
+	return &mockSNSClient{
+		publishFunc: publishFunc,
+	}
+}
+
+type mockSNSClient struct {
+	publishFunc func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error)
+}
+
+func (msc *mockSNSClient) Publish(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
+	return msc.publishFunc(ctx, params, optFns...)
+}
+
+func mustLoadJSONFile(t *testing.T, filePath string) *os.File {
 	data, err := os.Open(filePath)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return data
 }
