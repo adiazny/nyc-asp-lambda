@@ -1,0 +1,27 @@
+{
+    "days": [
+      {
+        "today_id": "20221111",
+        "items": [
+          {
+            "exceptionName": "Veterans Day 2022",
+            "details": "Alternate side parking is in effect. Meters are in effect.",
+            "status": "Active",
+            "type": "Alternate Side Parking"
+          },
+          {
+            "exceptionName": "Veterans Day 2022",
+            "details": "Trash, recycling, and compost collections are on schedule despite the Veterans Day holiday.",
+            "status": "ON SCHEDULE",
+            "type": "Collections"
+          },
+          {
+            "exceptionName": "Veterans Day 2022",
+            "details": "Public schools are closed for Veterans Day.",
+            "status": "CLOSED",
+            "type": "Schools"
+          }
+        ]
+      }
+    ]
+  }

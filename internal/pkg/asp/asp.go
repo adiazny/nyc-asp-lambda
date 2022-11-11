@@ -22,6 +22,10 @@ const (
 	apimSubscriptionKey = "Ocp-Apim-Subscription-Key"
 )
 
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type Config struct {
 	APIKey      string
 	BaseAPIHost string
@@ -31,10 +35,11 @@ type Config struct {
 type Client struct {
 	Log    *logrus.Entry
 	Config Config
-	HTTP   http.Client
+	HTTP   HTTPClient
 	SNS    *sns.Client
 }
 
+// GetASPItems performs HTTP request to obtain calendar items.
 func (client *Client) GetASPItems() ([]calendar.Item, error) {
 	fromDate := time.Now()
 	toDate := time.Now()
@@ -59,10 +64,12 @@ func (client *Client) GetASPItems() ([]calendar.Item, error) {
 		return nil, fmt.Errorf("error performing http request %w", err)
 	}
 
-	defer resp.Body.Close()
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error status code is not 200 OK, got %d", resp.StatusCode)
+		return nil, fmt.Errorf("error unexpected response code %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -78,14 +85,15 @@ func (client *Client) GetASPItems() ([]calendar.Item, error) {
 	}
 
 	items := filterItems(calendarResponse, func(item calendar.Item) bool {
-		//return item.Type == "Alternate Side Parking" && item.Status == "SUSPENDED"
-		return item.Type == "Alternate Side Parking"
+		return item.Type == "Alternate Side Parking" && item.Status == "SUSPENDED"
+		//return item.Type == "Alternate Side Parking"
 
 	})
 
 	return items, nil
 }
 
+// PublishSNS publishes a calendar item to a AWS SNS topic.
 func (client *Client) PublishSNS(ctx context.Context, aspItems []calendar.Item) error {
 	location, _ := time.LoadLocation("America/New_York")
 	formattedTime := time.Now().In(location).Format("Monday, Jan 02 2006")

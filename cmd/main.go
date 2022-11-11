@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	cfg "github.com/aws/aws-sdk-go-v2/config"
@@ -16,6 +17,8 @@ import (
 	"github.com/adiazny/nyc-asp-lambda/internal/pkg/asp"
 	calendar "github.com/adiazny/nyc-asp-lambda/internal/pkg/calendar"
 )
+
+const timeout = 10
 
 type environmentVariables struct {
 	OCPApimSubscriptionKey string `env:"OCP_APIM_SUBSCRIPTION_KEY,required"`
@@ -68,8 +71,10 @@ func HandleRequest(ctx context.Context) ([]calendar.Item, error) {
 			BaseAPIHost: envVars.BaseAPIHost,
 			SNSTopicARN: envVars.TopicARN,
 		},
-		HTTP: *http.DefaultClient,
-		SNS:  sns.NewFromConfig(awsConfig),
+		HTTP: &http.Client{
+			Timeout: time.Duration(time.Second * timeout),
+		},
+		SNS: sns.NewFromConfig(awsConfig),
 	}
 
 	aspItems, err := aspClient.GetASPItems()
