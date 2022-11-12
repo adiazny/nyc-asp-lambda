@@ -45,7 +45,8 @@ type Client struct {
 
 // GetASPItems performs HTTP request to obtain calendar items.
 func (client *Client) GetASPItems() ([]calendar.Item, error) {
-	fromDate := time.Now()
+	//fromDate := time.Now()
+	fromDate := time.Now().Add(-time.Hour * (24 * 2))
 	toDate := time.Now()
 
 	apiEndpoint := fmt.Sprintf("%s/%s?fromDate=%s&toDate=%s",
@@ -109,11 +110,13 @@ func (client *Client) PublishSNS(ctx context.Context, aspItems []calendar.Item) 
 		TopicArn: &client.Config.SNSTopicARN,
 	}
 
-	_, err := client.SNS.Publish(ctx, input)
+	publishOutput, err := client.SNS.Publish(ctx, input)
 	if err != nil {
 		client.Log.WithError(err).Error()
 		return fmt.Errorf("error pusblishing to AWS SNS topic %s: %w", client.Config.SNSTopicARN, err)
 	}
+
+	client.Log.WithField("snsMessageId", publishOutput.MessageId).Info("successfuly published to sns topic")
 
 	return nil
 }

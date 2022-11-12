@@ -83,6 +83,7 @@ func HandleRequest(ctx context.Context) ([]calendar.Item, error) {
 	}
 
 	if len(aspItems) == 0 {
+		log.Infof("no suspended ASP for %v", time.Now().Format(time.RFC3339))
 		return nil, nil
 	}
 
