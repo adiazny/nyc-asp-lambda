@@ -43,6 +43,11 @@ type Client struct {
 	SNS    SNSClient
 }
 
+type LambdaResponse struct {
+	Message  string
+	ASPItems []calendar.Item
+}
+
 // GetASPItems performs HTTP request to obtain calendar items.
 func (client *Client) GetASPItems() ([]calendar.Item, error) {
 	//fromDate := time.Now()
@@ -99,7 +104,13 @@ func (client *Client) GetASPItems() ([]calendar.Item, error) {
 }
 
 // PublishSNS publishes a calendar item to a AWS SNS topic.
-func (client *Client) PublishSNS(ctx context.Context, aspItems []calendar.Item) error {
+func (client *Client) PublishSNS(ctx context.Context, aspItems []calendar.Item) (LambdaResponse, error) {
+	if len(aspItems) == 0 {
+		client.Log.Infof("no suspended ASP for %v", time.Now().Format(time.RFC3339))
+
+		return LambdaResponse{Message: "No ASP to publish"}, nil
+	}
+
 	location, _ := time.LoadLocation("America/New_York")
 	formattedTime := time.Now().In(location).Format("Monday, Jan 02 2006")
 
@@ -113,12 +124,12 @@ func (client *Client) PublishSNS(ctx context.Context, aspItems []calendar.Item) 
 	publishOutput, err := client.SNS.Publish(ctx, input)
 	if err != nil {
 		client.Log.WithError(err).Error()
-		return fmt.Errorf("error pusblishing to AWS SNS topic %s: %w", client.Config.SNSTopicARN, err)
+		return LambdaResponse{}, fmt.Errorf("error pusblishing to AWS SNS topic %s: %w", client.Config.SNSTopicARN, err)
 	}
 
 	client.Log.WithField("snsMessageId", publishOutput.MessageId).Info("successfuly published to sns topic")
 
-	return nil
+	return LambdaResponse{Message: "ASP published to SNS", ASPItems: aspItems}, nil
 }
 
 func filterItems(res *calendar.Response, matchFunc func(item calendar.Item) bool) []calendar.Item {

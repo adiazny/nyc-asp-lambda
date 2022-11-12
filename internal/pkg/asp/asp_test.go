@@ -101,6 +101,8 @@ func TestClient_GetASPItems(t *testing.T) {
 }
 
 func TestClient_PublishSNS(t *testing.T) {
+	snsMsgId := "12345"
+
 	type fields struct {
 		Log    *logrus.Entry
 		Config asp.Config
@@ -117,14 +119,15 @@ func TestClient_PublishSNS(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
+		want    asp.LambdaResponse
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
-			name: "success",
+			name: "success publish",
 			fields: fields{
+				Log: logrus.NewEntry(logrus.New()),
 				SNS: newMockSNSClient(func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
-					return nil, nil
+					return &sns.PublishOutput{MessageId: &snsMsgId}, nil
 				}),
 			},
 			args: args{
@@ -135,6 +138,28 @@ func TestClient_PublishSNS(t *testing.T) {
 					Type:    "Alternate Side Parking",
 				}},
 			},
+			want: asp.LambdaResponse{Message: "ASP published to SNS",
+				ASPItems: []calendar.Item{
+					{Details: "Alternate side parking is suspended for Veterans Day. Meters are in effect.",
+						Status: "SUSPENDED",
+						Type:   "Alternate Side Parking",
+					},
+				}},
+			wantErr: false,
+		},
+		{
+			name: "success no publish",
+			fields: fields{
+				Log: logrus.NewEntry(logrus.New()),
+				SNS: newMockSNSClient(func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
+					return nil, nil
+				}),
+			},
+			args: args{
+				ctx:      context.Background(),
+				aspItems: []calendar.Item{},
+			},
+			want:    asp.LambdaResponse{Message: "No ASP to publish"},
 			wantErr: false,
 		},
 		{
@@ -154,6 +179,8 @@ func TestClient_PublishSNS(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			client := &asp.Client{
 				Log:    tt.fields.Log,
@@ -161,9 +188,17 @@ func TestClient_PublishSNS(t *testing.T) {
 				HTTP:   tt.fields.HTTP,
 				SNS:    tt.fields.SNS,
 			}
-			if err := client.PublishSNS(tt.args.ctx, tt.args.aspItems); (err != nil) != tt.wantErr {
+
+			got, err := client.PublishSNS(tt.args.ctx, tt.args.aspItems)
+			if (err != nil) != tt.wantErr {
 				t.Errorf("Client.PublishSNS() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Client.PublishSNS() = %v, want %v", got, tt.want)
+			}
+
 		})
 	}
 }

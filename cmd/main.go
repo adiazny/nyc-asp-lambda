@@ -15,8 +15,16 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/adiazny/nyc-asp-lambda/internal/pkg/asp"
-	calendar "github.com/adiazny/nyc-asp-lambda/internal/pkg/calendar"
 )
+
+/*
+	- Explore EventBridge scheduled rule to trigger Mon-Sat
+	- Explore how to configure cloud watch events on lambda and event brirge failures/errors
+	- Increase the pricing budget warning I currently have set in my personal aws account
+	- Explore writing aws services as terraform IaC using github and terraform cloud
+	- Explore converting from lambda zip file to image/container
+	- If staying lambda zip, explore pushing to S3 bucket
+*/
 
 const timeout = 10
 
@@ -42,7 +50,7 @@ func setup() (envVars *environmentVariables, err error) {
 	return envVars, nil
 }
 
-func HandleRequest(ctx context.Context) ([]calendar.Item, error) {
+func HandleRequest(ctx context.Context) (asp.LambdaResponse, error) {
 	logger := logrus.New()
 	logger.SetOutput(os.Stdout)
 	logger.SetFormatter(&logrus.JSONFormatter{})
@@ -79,20 +87,10 @@ func HandleRequest(ctx context.Context) ([]calendar.Item, error) {
 
 	aspItems, err := aspClient.GetASPItems()
 	if err != nil {
-		return nil, err
+		return asp.LambdaResponse{}, err
 	}
 
-	if len(aspItems) == 0 {
-		log.Infof("no suspended ASP for %v", time.Now().Format(time.RFC3339))
-		return nil, nil
-	}
-
-	err = aspClient.PublishSNS(ctx, aspItems)
-	if err != nil {
-		return nil, err
-	}
-
-	return aspItems, nil
+	return aspClient.PublishSNS(ctx, aspItems)
 }
 
 func main() {
