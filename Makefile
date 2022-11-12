@@ -1,9 +1,18 @@
-.PHONY: tidy build zip aws-configure
+.PHONY: tidy fmt lint test build zip aws-configure
 
 SHELL := /bin/bash
 
 tidy:
 	go mod tidy
+
+fmt:
+	gofmt -w -s -d .
+
+lint:
+	golangci-lint run ./...
+
+test:
+	go test -cover -race ./...
 
 build:
 	GOARCH=amd64 GOOS=linux go build cmd/main.go 
