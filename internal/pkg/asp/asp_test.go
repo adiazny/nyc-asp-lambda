@@ -146,12 +146,8 @@ func TestClient_PublishSNS(t *testing.T) {
 				}),
 			},
 			args: args{
-				ctx: context.Background(),
-				aspItems: []calendar.Item{{
-					Details: "Alternate side parking is suspended for Veterans Day. Meters are in effect.",
-					Status:  "SUSPENDED",
-					Type:    "Alternate Side Parking",
-				}},
+				ctx:      context.Background(),
+				aspItems: []calendar.Item{{}},
 			},
 			wantErr: true,
 		},

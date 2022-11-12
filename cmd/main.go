@@ -82,6 +82,10 @@ func HandleRequest(ctx context.Context) ([]calendar.Item, error) {
 		return nil, err
 	}
 
+	if len(aspItems) == 0 {
+		return nil, nil
+	}
+
 	err = aspClient.PublishSNS(ctx, aspItems)
 	if err != nil {
 		return nil, err
