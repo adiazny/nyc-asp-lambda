@@ -22,6 +22,12 @@
 
 # Program Binary
 main
+nyc-asp-lambda
+cmd/nyc-asp-lambda
 
 # ZIP files
 *.zip
+cmd/*.zip
+
+# Environment variables
+config/.env
